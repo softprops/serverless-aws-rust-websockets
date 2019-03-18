@@ -1,0 +1,89 @@
+
+# https://github.com/serverless/serverless-websockets-plugin/blob/master/example/serverless.yml
+
+service: aws-rust-websockets # NOTE: update this with your service name
+provider:
+  name: aws
+  runtime: rust
+  memorySize: 128
+  environment:
+    tableName: ${self:custom.tableName}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - "execute-api:Invoke"
+        - "execute-api:ManageConnections"
+      Resource:
+        # https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-control-access-iam.html
+        - "arn:aws:execute-api:#{AWS::Region}:#{AWS::AccountId}:*/${self:custom.stage}/POST/@connections/*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+      # Restrict our IAM role permissions to
+      # the specific table for the stage
+      Resource:
+        - "Fn::GetAtt": [ ConnectionsTable, Arn ]
+
+custom:
+  # Our stage is based on what is passed in when running serverless
+  # commands. Or fallsback to what we have set in the provider section.
+  stage: ${opt:stage, self:provider.stage}
+  # Set the table name here so we can use it while testing locally
+  tableName: ${self:custom.stage}-connections
+
+package:
+  individually: true
+
+plugins:
+  - serverless-rust
+  - serverless-pseudo-parameters
+
+functions:
+  # manage connection and disconnection of clients
+  # this is where we'll persist connection ids
+  # to dynamodb
+  connections:
+    handler: connections
+    events:
+      - websocket:
+          # The associated route is used when a client first connects to your WebSocket API.
+          route: $connect
+      - websocket:
+          # The associated route is used when a client disconnects from your API. This call is made on a best-effort basis.
+          route: $disconnect
+
+  # catch-all fallback handler for messages
+  default:
+    handler: default
+    events:
+      - websocket:
+          # Used when the route selection expression produces a value that does not match any of the other route keys in your API routes. This can be used, for example, to implement a generic error handling mechanism.
+          route: $default
+
+  # handle { action: send, ... } messages
+  send:
+    handler: send
+    events:
+      - websocket:
+          route: send
+
+resources:
+  Resources:
+    # DynamoDB best practices suggest most applications should only
+    # have a single table. For resources check out the follow links...
+    # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/best-practices.html
+    # Advanced Design Patterns for DynamoDB - https://www.youtube.com/watch?v=HaEPXoXVf2k
+    ConnectionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH

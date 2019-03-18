@@ -1,0 +1,14 @@
+[package]
+name = "connections"
+version = "0.1.0"
+authors = ["softprops <d.tangren@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+lambda_runtime = "0.2"
+serde_json = "1.0"
+serde = { version = "1.0" }
+# fixme: remove after next lambda_runtime version bump
+serde_derive = "1.0"
+rusoto_apigatewaymanagementapi = "0.37"
+dynomite = "0.3"
