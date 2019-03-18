@@ -1,4 +1,3 @@
-// https://github.com/serverless/serverless-websockets-plugin/blob/master/example/src/handler.js#L11
 use dynomite::{
     dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, PutItemInput},
     Item,
