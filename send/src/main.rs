@@ -14,9 +14,10 @@ use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::env;
 use tokio::runtime::Runtime;
+use rusoto_core::error::RusotoError;
 
 thread_local!(
-    static DDB: DynamoDbClient = DynamoDbClient::new(Region::default());
+    static DDB: DynamoDbClient = DynamoDbClient::new(Default::default());
 );
 
 thread_local!(
@@ -34,7 +35,7 @@ struct Connection {
 #[serde(rename_all = "camelCase")]
 struct Event {
     request_context: RequestContext,
-    body: String // parse this into json
+    body: String, // parse this into json
 }
 
 #[derive(Deserialize, Debug)]
@@ -45,26 +46,15 @@ struct RequestContext {
 }
 
 fn main() {
+    env_logger::init();
+    std::panic::set_hook(Box::new(|info| {
+        println!("Custom panic hook {:#?}", info.payload().downcast_ref::<&str>());
+    }));
     lambda!(handler)
 }
 
-fn handler(raw: Value, _: Context) -> Result<Value, HandlerError> {
-    let event = match serde_json::from_value::<Event>(raw) {
-        Ok(event) => event,
-        Err(err) => {
-            return Ok(json!({
-                "statusCode": 500
-            }))
-        }
-    };
-    let table_name = match env::var("tableName") {
-        Ok(table) => table,
-        _ => {
-            return Ok(json!({
-                "statusCode" : 200
-            }))
-        }
-    };
+fn handler(event: Event, _: Context) -> Result<Value, HandlerError> {
+    let table_name = env::var("tableName")?;
     let endpoint = format!(
         "https://{}/{}",
         event.request_context.domain_name, event.request_context.stage
@@ -75,8 +65,9 @@ fn handler(raw: Value, _: Context) -> Result<Value, HandlerError> {
                 table_name,
                 ..ScanInput::default()
             })
-            .for_each(|item| {
+            .for_each(move |item| {
                 let _ = Connection::from_attrs(item).and_then(|connection| {
+                    // https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/apigateway-how-to-call-websocket-api-connections.html
                     let client = ApiGatewayManagementApiClient::new(Region::Custom {
                         name: Region::UsEast1.name().into(),
                         endpoint: endpoint.clone(),
@@ -84,14 +75,12 @@ fn handler(raw: Value, _: Context) -> Result<Value, HandlerError> {
                     match client
                         .post_to_connection(PostToConnectionRequest {
                             connection_id: connection.id.clone(),
-                            data: serde_json::to_vec(&json!({
-                                "message": "got a message"
-                            }))
-                            .unwrap_or_default(),
+                            data: b"test".to_vec()
                         })
                         .sync()
                     {
                         Ok(resp) => {
+
                             println!(
                                 "post result to {} for connection {}: {:#?}",
                                 endpoint.clone(),
@@ -101,17 +90,12 @@ fn handler(raw: Value, _: Context) -> Result<Value, HandlerError> {
                         }
                         Err(err) => {
                             match err {
-                                PostToConnectionError::Unknown(resp) => {
-                                    println!(
-                                        "post result to {} for connection {} {:?} {:#?}",
-                                        endpoint.clone(),
-                                        connection.id.clone(),
-                                        resp.status,
-                                        String::from_utf8_lossy(&resp.body)
-                                    );
+                                RusotoError::Service(PostToConnectionError::Gone(_)) => {
+                                    // todo: delete the ddb connection id
+                                    // this client is disconnected
                                 }
-                                _ => println!("other error"),
-                            };
+                                _ => ()
+                            }
                         }
                     }
                     Ok(())

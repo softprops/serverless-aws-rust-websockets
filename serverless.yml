@@ -6,13 +6,14 @@ provider:
   name: aws
   runtime: rust
   memorySize: 128
+  tracing:
+    lambda: true
   environment:
     tableName: ${self:custom.tableName}
 
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - "execute-api:Invoke"
         - "execute-api:ManageConnections"
       Resource:
         # https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-control-access-iam.html
@@ -66,6 +67,8 @@ functions:
   # handle { action: send, ... } messages
   send:
     handler: send
+    #environment:
+    #  RUST_LOG: 'rusoto_core=trace'
     events:
       - websocket:
           route: send

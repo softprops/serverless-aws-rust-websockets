@@ -41,16 +41,7 @@ fn main() {
     lambda!(handler)
 }
 
-fn handler(raw: Value, _: Context) -> Result<Value, HandlerError> {
-    let event = match serde_json::from_value::<Event>(raw) {
-        Ok(event) => event,
-        Err(err) => {
-            println!("failed to deserialize {}", err);
-            return Ok(json!({
-                "statusCode": 500
-            }));
-        }
-    };
+fn handler(event: Event, _: Context) -> Result<Value, HandlerError> {
     let connection = Connection {
         id: event.request_context.connection_id,
     };
