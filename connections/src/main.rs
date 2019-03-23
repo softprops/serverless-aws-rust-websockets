@@ -73,7 +73,7 @@ fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
                         item: connection.clone().into(),
                         ..PutItemInput::default()
                     })
-                    .map(|_| ())
+                    .map(drop)
                     .map_err(Error::Connect),
                 )
             })
@@ -87,7 +87,7 @@ fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
                         key: connection.key(),
                         ..DeleteItemInput::default()
                     })
-                    .map(|_| ())
+                    .map(drop)
                     .map_err(Error::Disconnect),
                 )
             })
