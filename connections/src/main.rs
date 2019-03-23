@@ -106,11 +106,13 @@ fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn deserialize_connect_event() {
         serde_json::from_str::<Event>(include_str!("../tests/data/connect.json"))
             .expect("failed to deserialize connect event");
     }
+
     #[test]
     fn deserialize_disconnect_event() {
         serde_json::from_str::<Event>(include_str!("../tests/data/disconnect.json"))

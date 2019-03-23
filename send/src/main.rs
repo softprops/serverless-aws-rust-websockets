@@ -126,6 +126,7 @@ fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn deserialize_send_event() {
         serde_json::from_str::<Event>(include_str!("../tests/data/send.json"))
