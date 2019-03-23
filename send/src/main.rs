@@ -57,13 +57,14 @@ fn main() {
     lambda!(deliver)
 }
 
+fn endpoint(ctx: &RequestContext) -> String {
+    format!("https://{}/{}", ctx.domain_name, ctx.stage)
+}
+
 fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
     log::debug!("recv {}", event.body);
     let table_name = env::var("tableName")?;
-    let endpoint = format!(
-        "https://{}/{}",
-        event.request_context.domain_name, event.request_context.stage
-    );
+    let endpoint = endpoint(&event.request_context);
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
         name: Region::UsEast1.name().into(),
         endpoint,
@@ -121,4 +122,25 @@ fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
     Ok(json!({
         "statusCode": 200
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn deserialize_send_event() {
+        serde_json::from_str::<Event>(include_str!("../tests/data/send.json"))
+            .expect("failed to deserialize send event");
+    }
+
+    #[test]
+    fn formats_endpoint() {
+        assert_eq!(
+            endpoint(&RequestContext {
+                domain_name: "xxx.execute-api.us-east-1.amazonaws.com".into(),
+                stage: "dev".into()
+            }),
+            "https://xxx.execute-api.us-east-1.amazonaws.com/dev"
+        )
+    }
 }
