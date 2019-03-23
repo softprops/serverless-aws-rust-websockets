@@ -1,6 +1,4 @@
 
-# https://github.com/serverless/serverless-websockets-plugin/blob/master/example/serverless.yml
-
 service: aws-rust-websockets # NOTE: update this with your service name
 provider:
   name: aws
@@ -44,8 +42,6 @@ plugins:
 
 functions:
   # manage connection and disconnection of clients
-  # this is where we'll persist connection ids
-  # to dynamodb
   connections:
     handler: connections
     events:
@@ -67,8 +63,6 @@ functions:
   # handle { action: send, ... } messages
   send:
     handler: send
-    #environment:
-    #  RUST_LOG: 'rusoto_core=trace'
     events:
       - websocket:
           route: send

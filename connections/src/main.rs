@@ -1,17 +1,27 @@
 use dynomite::{
-    dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, PutItemInput},
+    dynamodb::{
+        DeleteItemError, DeleteItemInput, DynamoDb, DynamoDbClient, PutItemError, PutItemInput,
+    },
     Item,
 };
+use futures::{future::Either, Future};
 use lambda_runtime::{error::HandlerError, lambda, Context};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::cell::RefCell;
 use std::env;
+use tokio::runtime::Runtime;
 
 thread_local!(
     static DDB: DynamoDbClient = DynamoDbClient::new(Default::default());
 );
 
-#[derive(Item)]
+thread_local!(
+    static RT: RefCell<Runtime> =
+        RefCell::new(Runtime::new().expect("failed to initialize runtime"));
+);
+
+#[derive(Item, Clone)]
 struct Connection {
     #[hash]
     id: String,
@@ -38,52 +48,56 @@ enum EventType {
 }
 
 fn main() {
-    lambda!(handler)
+    env_logger::init();
+    lambda!(connector)
 }
 
-fn handler(event: Event, _: Context) -> Result<Value, HandlerError> {
+#[derive(Debug)]
+enum Error {
+    Connect(PutItemError),
+    Disconnect(DeleteItemError),
+}
+
+fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
+       let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,
     };
-    let table_name = match env::var("tableName") {
-        Ok(table_name) => table_name,
-        _ => {
-            return Ok(json!({
-                "statusCode": 500,
-                "body": "failed to resolve a db table"
-            }))
-        }
-    };
-    match event.request_context.event_type {
+    let result = match event.request_context.event_type {
         EventType::Connect => {
-            println!("connecting {}", connection.id);
+            log::info!("connecting {}", connection.id);
             DDB.with(|ddb| {
-                println!(
-                    "{:#?}",
+                Either::A(
                     ddb.put_item(PutItemInput {
                         table_name,
-                        item: connection.into(),
+                        item: connection.clone().into(),
                         ..PutItemInput::default()
                     })
-                    .sync()
-                );
-            });
+                    .map(|_| ())
+                    .map_err(Error::Connect)
+                )
+            })
         }
         EventType::Disconnect => {
-            println!("disconnecting {}", connection.id);
+            log::info!("disconnecting {}", connection.id);
             DDB.with(|ddb| {
-                println!(
-                    "{:#?}",
+                Either::B(
                     ddb.delete_item(DeleteItemInput {
                         table_name,
                         key: connection.key(),
                         ..DeleteItemInput::default()
                     })
-                    .sync()
-                );
-            });
+                    .map(|_| ())
+                    .map_err(Error::Disconnect),
+                )
+            })
         }
+    };
+
+    if let Err(err) = RT.with(|rt| rt.borrow_mut().block_on(result)) {
+        log::error!("failed to perform connection operation: {:?}", err);
     }
+
     Ok(json!({
         "statusCode": 200
     }))
