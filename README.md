@@ -18,10 +18,14 @@ $ npx wscat -c wss://{YOUR-API-ID}.execute-api.{YOUR-REGION}.amazonaws.com/dev
 
 This should open up an interactive repl with which you can communicate with the server
 
+You can send messages to the server with a json payload containing an "action" field of "send" with an optional text "message" field
+
 ```
 connected (press CTRL+C to quit)
 > {"action":"send"}
-< {"message":"pong"}
+< {"message":"🏓 pong"}
+> {"action":"send", "message":"psst"}
+< {"message":"psst"}
 ```
 
 ## how it works

@@ -77,7 +77,7 @@ fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
     let message = event
         .message()
         .and_then(|m| m.message)
-        .unwrap_or_else(|| "pong".into());
+        .unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
         name: Region::UsEast1.name().into(),
