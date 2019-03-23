@@ -9,12 +9,10 @@ use rusoto_apigatewaymanagementapi::{
     ApiGatewayManagementApi, ApiGatewayManagementApiClient, PostToConnectionError,
     PostToConnectionRequest,
 };
-use rusoto_core::Region;
-use rusoto_core::RusotoError;
+use rusoto_core::{Region, RusotoError};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::cell::RefCell;
-use std::env;
+use std::{cell::RefCell, env};
 use tokio::runtime::Runtime;
 
 thread_local!(
@@ -32,11 +30,24 @@ struct Connection {
     id: String,
 }
 
+/// the structure of the client payload (action aside)
+#[derive(Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct Message {
+    message: Option<String>,
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct Event {
     request_context: RequestContext,
     body: String, // parse this into json
+}
+
+impl Event {
+    fn message(&self) -> Option<Message> {
+        serde_json::from_str::<Message>(&self.body).ok()
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -63,6 +74,10 @@ fn endpoint(ctx: &RequestContext) -> String {
 
 fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
     log::debug!("recv {}", event.body);
+    let message = event
+        .message()
+        .and_then(|m| m.message)
+        .unwrap_or_else(|| "pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
         name: Region::UsEast1.name().into(),
@@ -85,10 +100,8 @@ fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
                             .clone()
                             .post_to_connection(PostToConnectionRequest {
                                 connection_id: connection.id.clone(),
-                                data: serde_json::to_vec(&json!({
-                                    "message": "pong"
-                                }))
-                                .unwrap_or_default(),
+                                data: serde_json::to_vec(&json!({ "message": message }))
+                                    .unwrap_or_default(),
                             })
                             .sync()
                         {
@@ -128,9 +141,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn deserialize_send_event() {
-        serde_json::from_str::<Event>(include_str!("../tests/data/send.json"))
+    fn deserialize_send_event_with_message() {
+        let event =
+            serde_json::from_str::<Event>(include_str!("../tests/data/send-something.json"))
+                .expect("failed to deserialize send event");
+        assert_eq!(
+            event.message().and_then(|m| m.message),
+            Some("howdy".into())
+        )
+    }
+
+    #[test]
+    fn deserialize_send_event_without_message() {
+        let event = serde_json::from_str::<Event>(include_str!("../tests/data/send-nothing.json"))
             .expect("failed to deserialize send event");
+        assert_eq!(event.message(), None)
     }
 
     #[test]

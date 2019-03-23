@@ -3,5 +3,5 @@
     "domainName": "xxx.execute-api.us-east-1.amazonaws.com",
     "stage": "dev"
   },
-  "body": "..."
+  "body": ""
 }
