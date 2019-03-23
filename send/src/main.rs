@@ -64,10 +64,9 @@ fn endpoint(ctx: &RequestContext) -> String {
 fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
     log::debug!("recv {}", event.body);
     let table_name = env::var("tableName")?;
-    let endpoint = endpoint(&event.request_context);
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
         name: Region::UsEast1.name().into(),
-        endpoint,
+        endpoint: endpoint(&event.request_context),
     });
     let delivery = DDB.with(|ddb| {
         let sweeper = ddb.clone();
