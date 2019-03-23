@@ -20,7 +20,7 @@ $ npx wscat -c wss://{YOUR-API-ID}.execute-api.{YOUR-REGION}.amazonaws.com/dev
 
 ### Traditional servers
 
-A typical websocket server requires an ability to a binary protocol over an upgraded
+A typical websocket server requires an ability to speak a binary protocol over an upgraded
 http protocol connection. By its nature it requires operational ability to maintain a
 persistant connection with any connected clients. Secure websocket connects require additional handshake procedures.
 
