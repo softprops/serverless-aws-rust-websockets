@@ -59,7 +59,7 @@ enum Error {
 }
 
 fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
-       let table_name = env::var("tableName")?;
+    let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,
     };
@@ -74,7 +74,7 @@ fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
                         ..PutItemInput::default()
                     })
                     .map(|_| ())
-                    .map_err(Error::Connect)
+                    .map_err(Error::Connect),
                 )
             })
         }
