@@ -1,7 +1,6 @@
-use dynomite::AttributeError;
 use dynomite::{
     dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, ScanError, ScanInput},
-    DynamoDbExt, FromAttributes, Item,
+    AttributeError, DynamoDbExt, FromAttributes, Item,
 };
 use futures::stream::Stream;
 use lambda_runtime::{error::HandlerError, lambda, Context};
@@ -72,7 +71,10 @@ fn endpoint(ctx: &RequestContext) -> String {
     format!("https://{}/{}", ctx.domain_name, ctx.stage)
 }
 
-fn deliver(event: Event, _: Context) -> Result<Value, HandlerError> {
+fn deliver(
+    event: Event,
+    _: Context,
+) -> Result<Value, HandlerError> {
     log::debug!("recv {}", event.body);
     let message = event
         .message()

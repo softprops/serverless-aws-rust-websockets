@@ -8,8 +8,7 @@ use futures::{future::Either, Future};
 use lambda_runtime::{error::HandlerError, lambda, Context};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::cell::RefCell;
-use std::env;
+use std::{cell::RefCell, env};
 use tokio::runtime::Runtime;
 
 thread_local!(
@@ -58,7 +57,10 @@ enum Error {
     Disconnect(DeleteItemError),
 }
 
-fn connector(event: Event, _: Context) -> Result<Value, HandlerError> {
+fn connector(
+    event: Event,
+    _: Context,
+) -> Result<Value, HandlerError> {
     let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,
