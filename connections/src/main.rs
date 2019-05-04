@@ -6,7 +6,8 @@ use dynomite::{
 };
 use futures::{future::Either, Future};
 use lambda_runtime::{error::HandlerError, lambda, Context};
-use serde_derive::{Deserialize, Serialize};
+use rusoto_core::RusotoError;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{cell::RefCell, env};
 use tokio::runtime::Runtime;
@@ -53,8 +54,8 @@ fn main() {
 
 #[derive(Debug)]
 enum Error {
-    Connect(PutItemError),
-    Disconnect(DeleteItemError),
+    Connect(RusotoError<PutItemError>),
+    Disconnect(RusotoError<DeleteItemError>),
 }
 
 fn connector(

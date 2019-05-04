@@ -58,7 +58,7 @@ struct RequestContext {
 
 #[derive(Debug)]
 enum Error {
-    Scan(ScanError),
+    Scan(RusotoError<ScanError>),
     Deserialize(AttributeError),
 }
 

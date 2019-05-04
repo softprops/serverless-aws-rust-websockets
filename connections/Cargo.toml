@@ -5,14 +5,13 @@ authors = ["softprops <d.tangren@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-log = "0.4"
+dynomite = "0.4"
 env_logger = "0.6"
 futures = "0.1"
 lambda_runtime = "0.2"
+log = "0.4"
+rusoto_apigatewaymanagementapi = "0.38"
+rusoto_core = "0.38"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde = { version = "1.0" }
-# fixme: remove after next lambda_runtime version bump
-serde_derive = "1.0"
-rusoto_apigatewaymanagementapi = "0.37"
-dynomite = "0.3"
 tokio = "0.1"
