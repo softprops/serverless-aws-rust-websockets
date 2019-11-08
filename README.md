@@ -6,7 +6,7 @@ exploration into Rust and [serverless websockets](https://serverless.com/framewo
 ## deploy
 
 ```sh
-$ npm i && npx serverless deploy
+$ npm ci && npx serverless deploy
 ```
 
 You can use the `wscat` command line utility to connect and communicate with your

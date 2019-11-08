@@ -1,8 +1,8 @@
 {
   "devDependencies": {
-    "serverless": "^1.45.1",
-    "serverless-rust": "^0.3.5",
-    "serverless-pseudo-parameters": "^2.4.0",
-    "wscat": "^2.2.1"
+    "serverless": "^1.57.0",
+    "serverless-rust": "^0.3.7",
+    "serverless-pseudo-parameters": "^2.5.0",
+    "wscat": "^3.0.0"
   }
 }
