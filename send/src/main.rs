@@ -2,8 +2,8 @@ use dynomite::{
     dynamodb::{DeleteItemInput, DynamoDb, DynamoDbClient, ScanError, ScanInput},
     AttributeError, DynamoDbExt, FromAttributes, Item,
 };
-use futures::stream::Stream;
-use lambda_runtime::{error::HandlerError, lambda, Context};
+use futures::TryStreamExt;
+use lambda::handler_fn;
 use rusoto_apigatewaymanagementapi::{
     ApiGatewayManagementApi, ApiGatewayManagementApiClient, PostToConnectionError,
     PostToConnectionRequest,
@@ -11,21 +11,15 @@ use rusoto_apigatewaymanagementapi::{
 use rusoto_core::{Region, RusotoError};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{cell::RefCell, env};
-use tokio::runtime::Runtime;
+use std::env;
 
 thread_local!(
     static DDB: DynamoDbClient = DynamoDbClient::new(Default::default());
 );
 
-thread_local!(
-    static RT: RefCell<Runtime> =
-        RefCell::new(Runtime::new().expect("failed to initialize runtime"));
-);
-
 #[derive(Item)]
 struct Connection {
-    #[hash]
+    #[dynomite(partition_key)]
     id: String,
 }
 
@@ -44,8 +38,8 @@ struct Event {
 }
 
 impl Event {
-    fn message(&self) -> Option<Message> {
-        serde_json::from_str::<Message>(&self.body).ok()
+    fn message(&self) -> Option<String> {
+        serde_json::from_str::<Message>(&self.body).ok()?.message
     }
 }
 
@@ -62,23 +56,23 @@ enum Error {
     Deserialize(AttributeError),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>> {
     env_logger::init();
-    lambda!(deliver)
+    lambda::run(handler_fn(deliver)).await?;
+    Ok(())
 }
 
 fn endpoint(ctx: &RequestContext) -> String {
     format!("https://{}/{}", ctx.domain_name, ctx.stage)
 }
 
-fn deliver(
-    event: Event,
-    _: Context,
-) -> Result<Value, HandlerError> {
+async fn deliver(
+    event: Event
+) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
     log::debug!("recv {}", event.body);
     let message = event
         .message()
-        .and_then(|m| m.message)
         .unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
@@ -93,43 +87,51 @@ fn deliver(
                 ..ScanInput::default()
             })
             .map_err(Error::Scan)
-            .for_each(move |item| {
-                Connection::from_attrs(item)
-                    .map_err(Error::Deserialize)
-                    .and_then(|connection| {
-                        // https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/apigateway-how-to-call-websocket-api-connections.html
-                        if let Err(RusotoError::Service(PostToConnectionError::Gone(_))) = client
-                            .clone()
-                            .post_to_connection(PostToConnectionRequest {
-                                connection_id: connection.id.clone(),
-                                data: serde_json::to_vec(&json!({ "message": message }))
-                                    .unwrap_or_default(),
-                            })
-                            .sync()
-                        {
-                            log::info!("hanging up on disconnected client {}", connection.id);
-                            if let Err(err) = sweeper
-                                .delete_item(DeleteItemInput {
-                                    table_name: env::var("tableName")
-                                        .expect("failed to resolve table"),
-                                    key: connection.key(),
-                                    ..DeleteItemInput::default()
-                                })
-                                .sync()
+            .try_for_each(move |item| {
+                let client = client.clone();
+                let sweeper = sweeper.clone();
+                let message = message.clone();
+                async move {
+                    match Connection::from_attrs(item) {
+                        Err(err) => return Err(Error::Deserialize(err)),
+                        Ok(connection) => {
+                            // https://docs.amazonaws.cn/en_us/apigateway/latest/developerguide/apigateway-how-to-call-websocket-api-connections.html
+                            if let Err(RusotoError::Service(PostToConnectionError::Gone(_))) =
+                                client
+                                    .post_to_connection(PostToConnectionRequest {
+                                        connection_id: connection.id.clone(),
+                                        data: serde_json::to_vec(&json!({ "message": message }))
+                                            .unwrap_or_default()
+                                            .into(),
+                                    })
+                                    .await
                             {
-                                log::info!(
-                                    "failed to delete connection {}: {}",
-                                    connection.id,
-                                    err
-                                );
+                                log::info!("hanging up on disconnected client {}", connection.id);
+                                if let Err(err) = sweeper
+                                    .delete_item(DeleteItemInput {
+                                        table_name: env::var("tableName")
+                                            .expect("failed to resolve table"),
+                                        key: connection.key(),
+                                        ..DeleteItemInput::default()
+                                    })
+                                    .await
+                                {
+                                    log::info!(
+                                        "failed to delete connection {}: {}",
+                                        connection.id,
+                                        err
+                                    );
+                                }
                             }
                         }
-                        Ok(())
-                    })
+                    }
+
+                    Ok(())
+                }
             })
     });
 
-    if let Err(err) = RT.with(|rt| rt.borrow_mut().block_on(delivery)) {
+    if let Err(err) = delivery.await {
         log::error!("failed to deliver message: {:?}", err);
     }
 
