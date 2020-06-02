@@ -1,14 +1,15 @@
-use lambda_runtime::{error::HandlerError, lambda, Context};
+use lambda::handler_fn;
 use serde_json::{json, Value};
 
-fn main() {
-    lambda!(handler)
+type Error = Box<dyn std::error::Error + Sync + Send + 'static>;
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    lambda::run(handler_fn(default)).await?;
+    Ok(())
 }
 
-fn handler(
-    event: Value,
-    _: Context,
-) -> Result<Value, HandlerError> {
+async fn default(event: Value) -> Result<Value, Error> {
     println!("default {:#?}", event);
     // todo: something more appropriate
     Ok(json!({
