@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
 
+type Error = Box<dyn std::error::Error + Sync + Send + 'static>;
+
 thread_local!(
     static DDB: DynamoDbClient = DynamoDbClient::new(Default::default());
 );
@@ -38,7 +40,7 @@ enum EventType {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>> {
+async fn main() -> Result<(), Error> {
     env_logger::init();
     lambda::run(handler_fn(connector)).await?;
     Ok(())
@@ -46,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send + 'static>
 
 async fn connector(
     event: Event
-) -> Result<Value, Box<dyn std::error::Error + Sync + Send + 'static>> {
+) -> Result<Value, Error> {
     let table_name = env::var("tableName")?;
     let connection = Connection {
         id: event.request_context.connection_id,
