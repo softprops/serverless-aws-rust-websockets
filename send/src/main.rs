@@ -38,8 +38,8 @@ struct Event {
 }
 
 impl Event {
-    fn message(&self) -> Option<Message> {
-        serde_json::from_str::<Message>(&self.body).ok()
+    fn message(&self) -> Option<String> {
+        serde_json::from_str::<Message>(&self.body).ok()?.message
     }
 }
 
@@ -73,7 +73,6 @@ async fn deliver(
     log::debug!("recv {}", event.body);
     let message = event
         .message()
-        .and_then(|m| m.message)
         .unwrap_or_else(|| "🏓 pong".into());
     let table_name = env::var("tableName")?;
     let client = ApiGatewayManagementApiClient::new(Region::Custom {
